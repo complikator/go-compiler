@@ -1,0 +1,24 @@
+# dune build @all
+# OCAMLPARAM: unset
+# Shared cache: enabled-except-user-rules
+# Shared cache location: /home/placek/.cache/dune/db
+# Workspace root: /home/placek/Desktop/studies/compilation/mini-go-ocaml
+# Auto-detected concurrency: 20
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; fdo_target_exe = None
+#  ; build_dir = In_build_dir "default"
+#  ; instrument_with = []
+#  }
+$ /home/placek/.opam/5.4.0/bin/ocamlc.opt -config > /tmp/dune_458450_output
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamldep.opt -modules -impl typing.ml) > _build/default/.minigo.eobjs/typing.impl.d
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlc.opt -g -g -bin-annot -bin-annot-occurrences -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/typing.cmo -c -impl typing.ml)
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlc.opt -g -g -bin-annot -bin-annot-occurrences -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/rewrite.cmo -c -impl rewrite.ml)
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -cmi-file .minigo.eobjs/byte/minigo.cmi -no-alias-deps -opaque -o .minigo.eobjs/native/minigo.cmx -c -impl minigo.ml)
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -cmi-file .minigo.eobjs/byte/rewrite.cmi -no-alias-deps -opaque -o .minigo.eobjs/native/rewrite.cmx -c -impl rewrite.ml)
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -cmi-file .minigo.eobjs/byte/typing.cmi -no-alias-deps -opaque -o .minigo.eobjs/native/typing.cmx -c -impl typing.ml)
+$ (cd _build/default && /home/placek/.opam/5.4.0/bin/ocamlopt.opt -g -g -o minigo.exe .minigo.eobjs/native/x86_64.cmx .minigo.eobjs/native/compile.cmx .minigo.eobjs/native/graph.cmx .minigo.eobjs/native/parser.cmx .minigo.eobjs/native/lexer.cmx .minigo.eobjs/native/lib.cmx .minigo.eobjs/native/pretty.cmx .minigo.eobjs/native/return_check.cmx .minigo.eobjs/native/unused.cmx .minigo.eobjs/native/utils.cmx .minigo.eobjs/native/typing.cmx .minigo.eobjs/native/rewrite.cmx .minigo.eobjs/native/minigo.cmx)
+# Promoting "_build/default/minigo.exe" to "minigo.exe"
