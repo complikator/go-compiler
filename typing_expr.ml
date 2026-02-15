@@ -169,7 +169,8 @@ module ExprTypecheck = struct
           let typed_args = List.map typecheck_rec pexpr_list in
           if ident.id = Constants.fmt_print then
             {
-              expr_desc = TEcall (func_def, fmt_print typecheck_rec pexpr_list fmt_print_used);
+              expr_desc =
+                TEprint (fmt_print typecheck_rec pexpr_list fmt_print_used);
               expr_typ = ResultType.empty;
             }
           else
@@ -326,7 +327,8 @@ module ExprTypecheck = struct
 end
 
 (** Main recursive type checking function for expressions *)
-let rec typecheck_expr (ctx : typing_context) (fmt_print_used : bool ref) (e : pexpr) : expr =
+let rec typecheck_expr (ctx : typing_context) (fmt_print_used : bool ref)
+    (e : pexpr) : expr =
   let typecheck_rec = typecheck_expr ctx fmt_print_used in
 
   match e.pexpr_desc with
@@ -337,7 +339,8 @@ let rec typecheck_expr (ctx : typing_context) (fmt_print_used : bool ref) (e : p
   | PEunop (op, e1) -> ExprTypecheck.unop typecheck_rec op e1 e.pexpr_loc
   | PEnil -> ExprTypecheck.nil ()
   | PEcall (ident, pexpr_list) ->
-      ExprTypecheck.call ctx typecheck_rec ident pexpr_list e.pexpr_loc fmt_print_used
+      ExprTypecheck.call ctx typecheck_rec ident pexpr_list e.pexpr_loc
+        fmt_print_used
   | PEident ident -> ExprTypecheck.ident ctx ident
   | PEdot (base_expr, field_ident) ->
       ExprTypecheck.dot typecheck_rec base_expr field_ident
@@ -350,8 +353,13 @@ let rec typecheck_expr (ctx : typing_context) (fmt_print_used : bool ref) (e : p
       ExprTypecheck.if_expr typecheck_rec cond then_branch else_branch
         cond.pexpr_loc
   | PEreturn exprs -> ExprTypecheck.return ctx typecheck_rec exprs e.pexpr_loc
-  | PEblock exprs -> ExprTypecheck.block (fun ctx -> typecheck_expr ctx fmt_print_used) ctx exprs
+  | PEblock exprs ->
+      ExprTypecheck.block
+        (fun ctx -> typecheck_expr ctx fmt_print_used)
+        ctx exprs
   | PEfor (cond, block) ->
-      ExprTypecheck.for_loop (fun ctx -> typecheck_expr ctx fmt_print_used) ctx cond block cond.pexpr_loc
+      ExprTypecheck.for_loop
+        (fun ctx -> typecheck_expr ctx fmt_print_used)
+        ctx cond block cond.pexpr_loc
   | PEincdec (expr, incdec) ->
       ExprTypecheck.incdec typecheck_rec expr incdec expr.pexpr_loc
