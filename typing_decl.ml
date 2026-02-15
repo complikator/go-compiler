@@ -13,9 +13,7 @@ open Typing_error
 (** Function and structure typechecking *)
 module DeclTypecheck = struct
   let check_unused_variables func_def typed_body =
-    let vars_inside_func =
-      collect_declared_vars typed_body @ func_def.fn_params
-    in
+    let vars_inside_func = collect_declared_vars typed_body in
     List.iter
       (fun v ->
         if not v.v_used then
@@ -31,7 +29,8 @@ module DeclTypecheck = struct
            (List.map (fun v -> Types.to_string v.v_typ) func_def.fn_params))
         (String.concat ", " (List.map Types.to_string func_def.fn_typ))
 
-  let function_ struct_env func_env fmt_print_used debug (f : pfunc) : function_ * expr =
+  let function_ struct_env func_env fmt_print_used debug (f : pfunc) :
+      function_ * expr =
     Validation.check_no_duplicate_params f;
 
     let func_def =
@@ -84,6 +83,8 @@ module DeclTypecheck = struct
   let declaration struct_env func_env fmt_print_used debug = function
     | PDstruct s -> TDstruct (structure struct_env s)
     | PDfunction f ->
-        let func_def, typed_body = function_ struct_env func_env fmt_print_used debug f in
+        let func_def, typed_body =
+          function_ struct_env func_env fmt_print_used debug f
+        in
         TDfunction (func_def, typed_body)
 end

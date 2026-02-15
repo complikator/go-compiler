@@ -1,0 +1,40 @@
+# Dune build directory
+_build/
+
+# OCaml compiled files
+*.cmo
+*.cmi
+*.cmx
+*.cmxa
+*.cmt
+*.cmti
+*.cma
+*.a
+*.o
+*.so
+*.dylib
+*.dll
+
+# OCaml native compilation
+*.opt
+*.native
+
+# Merlin configuration
+.merlin
+
+# OCaml toplevel and REPL
+*.annot
+
+# Opam local switch
+_opam/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# utop history
+.utop-history
