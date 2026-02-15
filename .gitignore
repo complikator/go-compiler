@@ -38,3 +38,9 @@ _opam/
 
 # utop history
 .utop-history
+
+
+
+# specific for the project
+*.s
+test
