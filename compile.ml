@@ -1,36 +1,35 @@
-
 (** Code generation for Mini Go programs (TODO) *)
 
 open Format
 open Ast
 open Tast
 open X86_64
+open Compilation
 
 let debug = ref false
-
 let iter f = List.fold_left (fun code x -> code ++ f x) nop
 let iter2 f = List.fold_left2 (fun code x y -> code ++ f x y) nop
 
-let new_label =
-  let r = ref 0 in fun () -> incr r; "L_" ^ string_of_int !r
-
-
-let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
+let file ?debug:(b = false) (dl : Tast.tfile) : X86_64.program =
   debug := b;
-  { text =
-      globl "main" ++ label "main" ++
-      nop (* TODO call Go main function here *) ++
-      xorq (reg rax) (reg rax) ++
-      ret ++
-      nop (* TODO assembly code for the Go functions here *) ++
-      inline "
-# TODO some auxiliary assembly functions, if needed
-"
-  ++ aligned_call_wrapper ~f:"malloc" ~newf:"malloc_"
-  ++ aligned_call_wrapper ~f:"calloc" ~newf:"calloc_"
-  ++ aligned_call_wrapper ~f:"printf" ~newf:"printf_"
-;
-    data =
-      nop (* TODO static data here, such as string constants *)
-    ;
+
+  (* compile functions *)
+  let funcs =
+    List.fold_left
+      (fun code -> function
+        | TDfunction (func, body) ->
+            let code_f = Compilation.compile_function func body in
+            code ++ code_f
+        | _ -> assert false)
+      nop dl
+  in
+
+  {
+    text =
+      globl "main" ++ funcs
+      ++ inline "\n# TODO some auxiliary assembly functions, if needed\n"
+      ++ aligned_call_wrapper ~f:"malloc" ~newf:"malloc_"
+      ++ aligned_call_wrapper ~f:"calloc" ~newf:"calloc_"
+      ++ aligned_call_wrapper ~f:"printf" ~newf:"printf_";
+    data = Data.generate_data_section dl;
   }

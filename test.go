@@ -2,63 +2,49 @@ package main
 
 import "fmt"
 
-/* arbres binaires de recherche */
-
-type BST struct {
-	value       int
-	left, right *BST
-}
-
-func make(v int, g *BST, d *BST) *BST {
-	s := new(BST)
-	s.value = v;
-	s.left = g;
-	s.right = d;
-	return s;
-}
-
-func add(a **BST, x int) {
-	t := *a
-	if t == nil {
-		*a = make(x, nil, nil)
-		return
-	}
-	if x < t.value {
-		add(&t.left, x)
-	} else if x > t.value {
-		add(&t.right, x)
-	}
-}
-
-func mem(a *BST, x int) bool {
-	if x == a.value { return true }
-	if x < a.value && a.left != nil { return mem(a.left, x); }
-	if a.right != nil { return mem(a.right, x); }
-	return false;
-}
-
-func print(a *BST) {
-	if a == nil { return }
-	fmt.Print("(")
-	if (a.left != nil) { print(a.left) }
-	fmt.Print(a.value)
-	if (a.right != nil) { print(a.right) }
-	fmt.Print(")")
-}
-
 func main() {
-	var dico *BST = nil
-	for i := 1; i < 10; i++ {
-		x := (55 * i) % 34
-		add(&dico, x)
-		print(dico)
-		fmt.Print("\n")
-	}
-	if mem(dico, 8) && !mem(dico, 0) && mem(dico, 32) && !mem(dico, 22) {
-	   fmt.Print("ok\n");
-	}
-	add(&dico, 42);
-	add(&dico, -1);
-	print(dico); fmt.Print("\n")
-}
+	// Test integers
+	fmt.Print("Integer tests:\n")
+	fmt.Print(0, "\n")
+	fmt.Print(42, "\n")
+	fmt.Print(-17, "\n")
+	fmt.Print(2147483647, "\n")
 
+	// Test booleans
+	fmt.Print("Boolean tests:\n")
+	fmt.Print(true, "\n")
+	fmt.Print(false, "\n")
+	fmt.Print(true, " ", false, "\n")
+
+	// Test strings
+	fmt.Print("String tests:\n")
+	fmt.Print("Hello, World!\n")
+	fmt.Print("", "\n") // empty string
+	fmt.Print("Tab:\there\n")
+	fmt.Print("Quote:\"test\"\n")
+	fmt.Print("Backslash:\\\n")
+
+	// Test mixed types in single Print
+	fmt.Print("Mixed tests:\n")
+	fmt.Print("Number: ", 100, "\n")
+	fmt.Print("Bool: ", true, "\n")
+	fmt.Print(1, " + ", 1, " = ", 2, "\n")
+	fmt.Print(true, " and ", false, " = ", false, "\n")
+
+	// Test string reuse (deduplication)
+	fmt.Print("Reuse test:\n")
+	fmt.Print("same\n")
+	fmt.Print("same\n")
+	fmt.Print("same\n")
+
+	// Test multiple arguments
+	fmt.Print("Multi-arg test:\n")
+	fmt.Print(1, 2, 3, 4, 5, "\n")
+	fmt.Print(true, false, true, false, "\n")
+	fmt.Print("a", "b", "c", "d", "\n")
+
+	// Edge cases
+	fmt.Print("Edge cases:\n")
+	fmt.Print(0, false, "", "\n")
+	fmt.Print("\n\n\n")
+}
