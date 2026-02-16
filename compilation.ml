@@ -151,15 +151,39 @@ module Data = struct
 end
 
 module Allocation = struct
+  module StructTable = struct
+    let table : (string, structure) Hashtbl.t = Hashtbl.create 16
+    let add (s : structure) : unit = Hashtbl.replace table s.s_name s
+    let find (name : string) : structure option = Hashtbl.find_opt table name
+  end
+
+  (* Look up actual field offset from allocated structure *)
+  let get_field_offset (expr_typ : typ) (field : field) : int =
+    match expr_typ with
+    | Tstruct s -> (
+        match StructTable.find s.s_name with
+        | Some s_allocated -> (
+            match
+              List.find_opt
+                (fun f -> f.f_name = field.f_name)
+                s_allocated.s_list
+            with
+            | Some f -> f.f_ofs
+            | None -> field.f_ofs)
+        | None -> field.f_ofs)
+    | _ -> field.f_ofs
+
+  let sizeof (t : typ) : int =
+    match t with
+    | Tstruct s -> (
+        match StructTable.find s.s_name with
+        | Some allocated_struct -> allocated_struct.s_size
+        | None -> failwith ("Structure " ^ s.s_name ^ " not allocated yet"))
+    | _ -> SizeConstants.standard_field_size_bytes
+
   (* Calculates offset of fields and size of entire structure *)
   let allocate_all_structures (tfile : Tast.tfile) : unit =
     let allocated_structures = ref StringSet.empty in
-
-    let sizeof (t : typ) : int =
-      match t with
-      | Tstruct s -> s.s_size
-      | _ -> SizeConstants.standard_field_size_bytes
-    in
 
     (* recursively calculates size of structures and its fields *)
     let rec allocate_structure (s : structure) : unit =
@@ -170,17 +194,18 @@ module Allocation = struct
         (* process all fields *)
         List.iter
           (fun f ->
-            match f.f_typ with
+            f.f_ofs <- !offset;
+            (match f.f_typ with
             | Tstruct nested -> allocate_structure nested
-            | _ ->
-                ();
-
-                f.f_ofs <- !offset;
-                offset := !offset + sizeof f.f_typ)
+            | _ -> ());
+            offset := !offset + sizeof f.f_typ)
           s.s_list;
 
         s.s_size <- !offset;
-        allocated_structures := StringSet.add s.s_name !allocated_structures
+        (* print info about structure *)
+        Printf.printf "Allocated structure %s with size %d\n" s.s_name s.s_size;
+        allocated_structures := StringSet.add s.s_name !allocated_structures;
+        StructTable.add s
       end
     in
 
@@ -267,8 +292,14 @@ module Compilation = struct
     | Uamp -> (
         match e.expr_desc with
         | TEident v -> leaq (ind ~ofs:v.v_ofs rbp) rax
-        | TEdot (ee, field) ->
-            compile_expr ee ++ leaq (ind ~ofs:field.f_ofs rax) rax
+        | TEdot (ee, field) -> (
+            let offset = Allocation.get_field_offset ee.expr_typ field in
+            match ee.expr_desc with
+            | TEunop (Ustar, ptr_expr) ->
+                (* Already dereferenced in AST, just get pointer *)
+                compile_expr ptr_expr ++ leaq (ind ~ofs:offset rax) rax
+            | _ -> compile_expr ee ++ leaq (ind ~ofs:offset rax) rax)
+        | TEunop (Ustar, e) -> compile_expr e
         | _ -> failwith "Cannot take address of non-variable expression")
     | Ustar -> compile_expr e ++ movq (ind rax) (reg rax)
 
@@ -318,12 +349,116 @@ module Compilation = struct
   let block (compile_expr : expr -> text) (expr_list : expr list) : text =
     CompilationUtils.fold_left_concat compile_expr expr_list
 
+  let binop (compile_expr : expr -> text) (op : Tast.binop) (e1 : expr)
+      (e2 : expr) : text =
+    (* save current stack pointer *)
+    movq (reg rsp) (reg r12)
+    ++
+    (* put first argument on the stack - pointed by rsp *)
+    (* second argument stays in rax *)
+    compile_expr e1
+    ++ pushq (reg rax)
+    ++ compile_expr e2
+    ++ (match op with
+      | Badd -> addq (ind ~ofs:0 rsp) (reg rax)
+      | Bsub -> subq (reg rax) (ind ~ofs:0 rsp) ++ popq rax
+      | Bmul -> imulq (ind ~ofs:0 rsp) (reg rax)
+      | Bdiv | Bmod ->
+          (* need to put divident into rdx:rax (128 bit) *)
+          (* divisor can be wherever - will put on the stack *)
+          (* quotient - rax, remainder - rdx *)
+          pushq (reg rax)
+          ++ movq (ind ~ofs:8 rsp) (reg rax)
+          ++ cqto
+          ++ idivq (ind ~ofs:0 rsp)
+          ++
+          (* move remainder to rax if mod operation *)
+          if op = Bmod then movq (reg rdx) (reg rax) else nop
+      | Beq ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++
+          (* Compare e1 vs e2 *)
+          sete (reg (register8 rax))
+          ++
+          (* %al = 1 if equal *)
+          movzbq (reg (register8 rax)) rax (* Zero-extend to 64-bit *)
+      | Bne ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++ setne (reg (register8 rax))
+          ++
+          (* %al = 1 if not equal *)
+          movzbq (reg (register8 rax)) rax
+      | Blt ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++
+          (* e1 - e2 *)
+          setl (reg (register8 rax))
+          ++
+          (* %al = 1 if e1 < e2 *)
+          movzbq (reg (register8 rax)) rax
+      | Ble ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++ setle (reg (register8 rax))
+          ++
+          (* %al = 1 if e1 <= e2 *)
+          movzbq (reg (register8 rax)) rax
+      | Bgt ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++ setg (reg (register8 rax))
+          ++
+          (* %al = 1 if e1 > e2 *)
+          movzbq (reg (register8 rax)) rax
+      | Bge ->
+          cmpq (reg rax) (ind ~ofs:0 rsp)
+          ++ setge (reg (register8 rax))
+          ++
+          (* %al = 1 if e1 >= e2 *)
+          movzbq (reg (register8 rax)) rax
+      | Band -> andq (ind ~ofs:0 rsp) (reg rax)
+      | Bor -> orq (ind ~ofs:0 rsp) (reg rax)) (* restore stack pointer *)
+    ++ movq (reg r12) (reg rsp)
+
   let rec compile_expr (e : expr) : text =
     match e.expr_desc with
+    | TEident v -> movq (ind ~ofs:v.v_ofs rbp) (reg rax)
     | TEconstant const -> constant const
     | TEunop (op, e) -> unop compile_expr op e
     | TEprint expr_list -> print compile_expr expr_list
     | TEblock expr_list -> block compile_expr expr_list
+    | TEbinop (op, e1, e2) -> binop compile_expr op e1 e2
+    | TEvars _ -> nop
+    | TEassign ([ left ], [ right ]) -> (
+        compile_expr right
+        ++
+        match left.expr_desc with
+        | TEident v -> movq (reg rax) (ind ~ofs:v.v_ofs rbp)
+        | TEdot (struct_expr, field) ->
+            pushq (reg rax)
+            ++ (match struct_expr.expr_desc with
+              | TEunop (Ustar, e) -> compile_expr e
+              | _ -> compile_expr struct_expr)
+            ++ addq
+                 (imm (Allocation.get_field_offset struct_expr.expr_typ field))
+                 (reg rax)
+            ++ popq rcx
+            ++ movq (reg rcx) (ind ~ofs:0 rax)
+        | TEunop (Ustar, e) ->
+            pushq (reg rax)
+            ++ compile_expr e ++ popq rcx
+            ++ movq (reg rcx) (ind ~ofs:0 rax)
+        | _ -> failwith "assignment not yet implemented")
+    | TEassign _ -> failwith "Unsupported assignment"
+    | TEdot (e, field) -> (
+        match e.expr_desc with
+        | TEunop (Ustar, ptr_expr) ->
+            compile_expr ptr_expr
+            ++ movq
+                 (ind ~ofs:(Allocation.get_field_offset e.expr_typ field) rax)
+                 (reg rax)
+        | _ -> compile_expr e ++ movq (ind ~ofs:field.f_ofs rax) (reg rax))
+    | TEnew ty ->
+        let size = Allocation.sizeof ty in
+        movq (imm size) (reg rdi) ++ call Constants.function_malloc_label
     | _ -> failwith "Unsupported expression type"
 
   let compile_function (fn : function_) (body : expr) : text =
@@ -332,5 +467,6 @@ module Compilation = struct
     label fn.fn_name
     ++ pushq (reg rbp)
     ++ movq (reg rsp) (reg rbp)
+    ++ subq (imm local_stack_size) (reg rsp)
     ++ compile_expr body ++ leave ++ ret
 end
